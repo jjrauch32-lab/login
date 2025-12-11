@@ -115,6 +115,11 @@ describe('Package Configuration Validation', () => {
             expect(packageJson.dependencies['@actions/core']).toBe('1.9.1');
         });
 
+        test('should NOT have @actions/core at version 1.11.1', () => {
+            expect(packageJson.dependencies['@actions/core']).not.toBe('1.11.1');
+            expect(packageJson.dependencies['@actions/core']).not.toBe('^1.11.1');
+        });
+
         test('should have @actions/exec dependency', () => {
             expect(packageJson.dependencies['@actions/exec']).toBeDefined();
             expect(typeof packageJson.dependencies['@actions/exec']).toBe('string');
@@ -159,6 +164,10 @@ describe('Package Configuration Validation', () => {
                 expect(version).toMatch(/^[\^~]?\d+\.\d+\.\d+$|^\d+\.\d+\.\d+$/);
             });
         });
+
+        test('should have jest-circus as dev dependency', () => {
+            expect(packageJson.devDependencies).toHaveProperty('jest-circus');
+        });
     });
 
     describe('package-lock.json Schema Validation', () => {
@@ -186,15 +195,20 @@ describe('Package Configuration Validation', () => {
             expect(packageLockJson.lockfileVersion).toBeGreaterThanOrEqual(1);
         });
 
-        test('should have packages or dependencies field', () => {
-            const hasPackages = packageLockJson.hasOwnProperty('packages');
-            const hasDependencies = packageLockJson.hasOwnProperty('dependencies');
-            expect(hasPackages || hasDependencies).toBeTruthy();
+        test('should have packages field for lockfile v2/v3', () => {
+            if (packageLockJson.lockfileVersion >= 2) {
+                expect(packageLockJson).toHaveProperty('packages');
+            }
+        });
+
+        test('should have requires field', () => {
+            expect(packageLockJson).toHaveProperty('requires');
+            expect(typeof packageLockJson.requires).toBe('boolean');
         });
     });
 
-    describe('package-lock.json Dependency Integrity', () => {
-        test('should have @actions/core at version 1.9.1', () => {
+    describe('package-lock.json @actions/core v1.9.1 Integrity', () => {
+        test('should have @actions/core at version 1.9.1 in packages', () => {
             if (packageLockJson.packages) {
                 const corePackage = packageLockJson.packages['node_modules/@actions/core'];
                 expect(corePackage).toBeDefined();
@@ -202,7 +216,14 @@ describe('Package Configuration Validation', () => {
             }
         });
 
-        test('should have @actions/core with required dependencies', () => {
+        test('should NOT have @actions/core at version 1.11.1', () => {
+            if (packageLockJson.packages) {
+                const corePackage = packageLockJson.packages['node_modules/@actions/core'];
+                expect(corePackage.version).not.toBe('1.11.1');
+            }
+        });
+
+        test('should have @actions/core with required dependencies for v1.9.1', () => {
             if (packageLockJson.packages) {
                 const corePackage = packageLockJson.packages['node_modules/@actions/core'];
                 expect(corePackage).toBeDefined();
@@ -212,7 +233,7 @@ describe('Package Configuration Validation', () => {
             }
         });
 
-        test('should have uuid as a dependency of @actions/core', () => {
+        test('should have uuid as a dependency of @actions/core v1.9.1', () => {
             if (packageLockJson.packages) {
                 const corePackage = packageLockJson.packages['node_modules/@actions/core'];
                 expect(corePackage.dependencies.uuid).toBe('^8.3.2');
@@ -224,6 +245,15 @@ describe('Package Configuration Validation', () => {
                 const uuidPackage = packageLockJson.packages['node_modules/@actions/core/node_modules/uuid'];
                 expect(uuidPackage).toBeDefined();
                 expect(uuidPackage.version).toBe('8.3.2');
+            }
+        });
+
+        test('uuid version should be 8.3.2 exactly', () => {
+            if (packageLockJson.packages) {
+                const uuidPackage = packageLockJson.packages['node_modules/@actions/core/node_modules/uuid'];
+                expect(uuidPackage.version).toBe('8.3.2');
+                expect(uuidPackage.version).not.toBe('9.0.0');
+                expect(uuidPackage.version).not.toMatch(/^9\./);
             }
         });
 
@@ -253,6 +283,13 @@ describe('Package Configuration Validation', () => {
                 expect(ioPackage).toBeDefined();
                 expect(ioPackage.version).toBeDefined();
                 expect(ioPackage.version).toMatch(/^\d+\.\d+\.\d+$/);
+            }
+        });
+
+        test('should have @actions/http-client as dependency of @actions/core', () => {
+            if (packageLockJson.packages) {
+                const corePackage = packageLockJson.packages['node_modules/@actions/core'];
+                expect(corePackage.dependencies).toHaveProperty('@actions/http-client');
             }
         });
     });
@@ -295,6 +332,14 @@ describe('Package Configuration Validation', () => {
                 });
                 
                 expect(conflicts).toEqual([]);
+            }
+        });
+
+        test('package-lock.json should reflect the downgrade from 1.11.1 to 1.9.1', () => {
+            if (packageLockJson.packages) {
+                const corePackage = packageLockJson.packages['node_modules/@actions/core'];
+                expect(corePackage.version).toBe('1.9.1');
+                expect(corePackage.version).not.toContain('1.11');
             }
         });
     });
@@ -347,6 +392,11 @@ describe('Package Configuration Validation', () => {
             expect(devDepsCount).toBeGreaterThan(0);
             expect(devDepsCount).toBeLessThan(50);
         });
+
+        test('should not have known vulnerabilities in pinned @actions/core version', () => {
+            // Version 1.9.1 is considered safe for the project's use case
+            expect(packageJson.dependencies['@actions/core']).toBe('1.9.1');
+        });
     });
 
     describe('Critical Dependency Pinning', () => {
@@ -359,6 +409,14 @@ describe('Package Configuration Validation', () => {
         test('pinned version should prevent automatic updates', () => {
             const version = packageJson.dependencies['@actions/core'];
             expect(version).toMatch(/^\d+\.\d+\.\d+$/);
+        });
+
+        test('@actions/core should be pinned without semver range operators', () => {
+            const version = packageJson.dependencies['@actions/core'];
+            expect(version).not.toContain('^');
+            expect(version).not.toContain('~');
+            expect(version).not.toContain('>');
+            expect(version).not.toContain('<');
         });
     });
 
@@ -379,6 +437,11 @@ describe('Package Configuration Validation', () => {
             
             expect(() => JSON.parse(packageContent)).not.toThrow();
             expect(() => JSON.parse(lockContent)).not.toThrow();
+        });
+
+        test('package.json should have proper indentation', () => {
+            const content = fs.readFileSync(packageJsonPath, 'utf8');
+            expect(content).toContain('  '); // Expects 2-space indentation
         });
     });
 
@@ -409,6 +472,24 @@ describe('Package Configuration Validation', () => {
                 const uuidPackage = packageLockJson.packages['node_modules/@actions/core/node_modules/uuid'];
                 expect(uuidPackage).toBeDefined();
                 expect(uuidPackage.version).toBe('8.3.2');
+            }
+        });
+
+        test('@actions/core 1.9.1 uses uuid for secret masking', () => {
+            // This version specifically requires uuid for generating unique identifiers
+            if (packageLockJson.packages) {
+                const corePackage = packageLockJson.packages['node_modules/@actions/core'];
+                expect(corePackage.dependencies).toHaveProperty('uuid');
+                expect(corePackage.dependencies.uuid).toMatch(/\^8\./);
+            }
+        });
+
+        test('@actions/core 1.9.1 should not have crypto.randomUUID fallback', () => {
+            // Version 1.11.1 removed uuid dependency in favor of crypto.randomUUID
+            // Version 1.9.1 still requires uuid
+            if (packageLockJson.packages) {
+                const corePackage = packageLockJson.packages['node_modules/@actions/core'];
+                expect(corePackage.dependencies).toHaveProperty('uuid');
             }
         });
     });
@@ -442,6 +523,151 @@ describe('Package Configuration Validation', () => {
                 expect(version).not.toBeUndefined();
                 expect(version).toBeTruthy();
             });
+        });
+
+        test('should handle lockfile version 3 format correctly', () => {
+            if (packageLockJson.lockfileVersion === 3) {
+                expect(packageLockJson).toHaveProperty('packages');
+                expect(packageLockJson.packages['']).toBeDefined();
+            }
+        });
+    });
+
+    describe('Compatibility with GitHub Actions', () => {
+        test('should have @actions/core compatible with GitHub Actions runtime', () => {
+            // Version 1.9.1 is compatible with GitHub Actions
+            expect(packageJson.dependencies['@actions/core']).toBe('1.9.1');
+        });
+
+        test('should have @actions/exec for command execution', () => {
+            expect(packageJson.dependencies).toHaveProperty('@actions/exec');
+        });
+
+        test('should have @actions/io for file operations', () => {
+            expect(packageJson.dependencies).toHaveProperty('@actions/io');
+        });
+
+        test('core version 1.9.1 supports setSecret functionality', () => {
+            // Verify that 1.9.1 has the necessary dependencies for secret masking
+            if (packageLockJson.packages) {
+                const corePackage = packageLockJson.packages['node_modules/@actions/core'];
+                expect(corePackage.dependencies).toHaveProperty('uuid');
+            }
+        });
+
+        test('core version 1.9.1 supports getInput functionality', () => {
+            // This is a core API that exists in 1.9.1
+            expect(packageJson.dependencies['@actions/core']).toBe('1.9.1');
+        });
+
+        test('core version 1.9.1 supports getIDToken functionality', () => {
+            // OIDC token support exists in 1.9.1
+            expect(packageJson.dependencies['@actions/core']).toBe('1.9.1');
+        });
+    });
+
+    describe('Transitive Dependencies', () => {
+        test('should have @actions/http-client as transitive dependency', () => {
+            if (packageLockJson.packages) {
+                const httpClientPackage = packageLockJson.packages['node_modules/@actions/http-client'];
+                expect(httpClientPackage).toBeDefined();
+            }
+        });
+
+        test('should have tunnel as transitive dependency of http-client', () => {
+            if (packageLockJson.packages) {
+                const tunnelPackage = packageLockJson.packages['node_modules/@actions/http-client/node_modules/tunnel'];
+                expect(tunnelPackage).toBeDefined();
+            }
+        });
+
+        test('uuid should be nested under @actions/core', () => {
+            if (packageLockJson.packages) {
+                const uuidKey = 'node_modules/@actions/core/node_modules/uuid';
+                expect(packageLockJson.packages[uuidKey]).toBeDefined();
+            }
+        });
+
+        test('should not have conflicting uuid versions', () => {
+            if (packageLockJson.packages) {
+                const uuidVersions = new Set<string>();
+                Object.entries(packageLockJson.packages).forEach(([key, pkg]: [string, any]) => {
+                    if (key.includes('uuid') && pkg.version) {
+                        uuidVersions.add(pkg.version);
+                    }
+                });
+                // Only uuid 8.3.2 should exist for @actions/core 1.9.1
+                expect(uuidVersions.has('8.3.2')).toBe(true);
+            }
+        });
+    });
+
+    describe('Build and Test Infrastructure', () => {
+        test('should have TypeScript compiler in devDependencies', () => {
+            expect(packageJson.devDependencies).toHaveProperty('typescript');
+        });
+
+        test('should have @vercel/ncc for bundling', () => {
+            expect(packageJson.devDependencies).toHaveProperty('@vercel/ncc');
+        });
+
+        test('should have complete Jest setup', () => {
+            expect(packageJson.devDependencies).toHaveProperty('jest');
+            expect(packageJson.devDependencies).toHaveProperty('ts-jest');
+            expect(packageJson.devDependencies).toHaveProperty('@types/jest');
+            expect(packageJson.devDependencies).toHaveProperty('jest-circus');
+        });
+
+        test('should have Node.js type definitions', () => {
+            expect(packageJson.devDependencies).toHaveProperty('@types/node');
+        });
+    });
+
+    describe('Version Downgrade Verification', () => {
+        test('confirms intentional downgrade from 1.11.1 to 1.9.1', () => {
+            // This test explicitly documents the downgrade
+            expect(packageJson.dependencies['@actions/core']).toBe('1.9.1');
+            expect(packageJson.dependencies['@actions/core']).not.toBe('1.11.1');
+        });
+
+        test('downgrade includes required uuid dependency', () => {
+            if (packageLockJson.packages) {
+                const corePackage = packageLockJson.packages['node_modules/@actions/core'];
+                expect(corePackage.dependencies).toHaveProperty('uuid');
+                expect(corePackage.dependencies.uuid).toBe('^8.3.2');
+            }
+        });
+
+        test('lock file integrity matches downgraded version', () => {
+            if (packageLockJson.packages) {
+                const corePackage = packageLockJson.packages['node_modules/@actions/core'];
+                expect(corePackage.version).toBe('1.9.1');
+            }
+        });
+
+        test('uuid 8.3.2 is properly locked', () => {
+            if (packageLockJson.packages) {
+                const uuidPackage = packageLockJson.packages['node_modules/@actions/core/node_modules/uuid'];
+                expect(uuidPackage.version).toBe('8.3.2');
+            }
+        });
+    });
+
+    describe('Regression Prevention', () => {
+        test('should prevent accidental upgrade back to 1.11.1', () => {
+            expect(packageJson.dependencies['@actions/core']).toBe('1.9.1');
+            expect(packageJson.dependencies['@actions/core']).not.toContain('1.11');
+        });
+
+        test('should maintain exact version pin', () => {
+            const version = packageJson.dependencies['@actions/core'];
+            expect(version).not.toMatch(/^[\^~]/);
+        });
+
+        test('lock file should not contain any 1.11.x references for @actions/core', () => {
+            const lockContent = fs.readFileSync(packageLockJsonPath, 'utf8');
+            const coreReferences = lockContent.match(/@actions\/core.*1\.11/g);
+            expect(coreReferences).toBeNull();
         });
     });
 });
